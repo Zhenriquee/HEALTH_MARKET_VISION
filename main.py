@@ -1,94 +1,56 @@
 import streamlit as st
 import pandas as pd
-from configuracoes import QUERIES_PATH
+from backend.services.data_engine import DataEngine
 
-from infra.db_connector import ConexaoSQLite
-from backend.repository import AnsRepository
-from backend.services.filter_service import FilterService
+# Importa a visualização que acabamos de criar
+from views.vis_panorama import render_panorama_mercado
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
+# --- CONFIGURAÇÃO VISUAL ---
 st.set_page_config(
-    page_title="Dashboard ANS - Unimed",
+    page_title="Painel Estratégico ANS",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed" # Começa fechado para dar foco ao Top 1
 )
 
-# --- INICIALIZAÇÃO COM CACHE ---
-# O @st.cache_resource é usado para conexões e classes que não mudam.
-# Isso evita que o Streamlit recrie a conexão com o banco a cada clique.
-@st.cache_resource
-def get_filter_service():
-    # 1. Conecta (Pega caminho do settings.py automaticamente)
-    conector = ConexaoSQLite()
-    
-    # 2. Prepara Repositório
-    repo = AnsRepository(conector, QUERIES_PATH)
-    
-    # 3. Retorna o Serviço
-    return FilterService(repo)
-
-# O @st.cache_data é usado para armazenar DataFrames.
-# Se os dados não mudaram, ele não roda a query SQL de novo (muito rápido).
-@st.cache_data
-def carregar_dados_operadoras(_service):
-    return _service.get_todas_operadoras()
+# --- CARREGAMENTO DE DADOS ---
+@st.cache_data(show_spinner="Consolidando dados do mercado...")
+def carregar_dados():
+    engine = DataEngine()
+    return engine.gerar_dataset_mestre()
 
 def main():
-    # 1. Instancia os serviços (uma única vez graças ao cache)
-    service = get_filter_service()
+    # 1. Carrega Dados
+    df_mestre = carregar_dados()
     
-    # 2. Carrega os dados
-    df_operadoras = carregar_dados_operadoras(service)
-
-    # --- BARRA LATERAL (SIDEBAR) ---
-    st.sidebar.title("Filtros")
-    st.sidebar.header("Seleção de Operadora")
-
-    if not df_operadoras.empty:
-        # Cria uma lista formatada: "123456 - UNIMED CARUARU..."
-        # Isso ajuda o usuário a ver o código e o nome juntos
-        opcoes = df_operadoras.apply(
-            lambda x: f"{x['registro_operadora']} - {x['razao_social']}", axis=1
-        )
-        
-        # Selectbox com pesquisa
-        escolha = st.sidebar.selectbox(
-            "Selecione a Operadora Foco:",
-            options=opcoes,
-            index=0 # Começa com a primeira da lista
-        )
-        
-        # Extrai o código da string selecionada (pega tudo antes do primeiro " - ")
-        cod_selecionado = escolha.split(" - ")[0]
-        
-        st.sidebar.markdown("---")
-        st.sidebar.info(f"**Operadora Selecionada:**\n\n{escolha}")
-        st.sidebar.text(f"CNPJ: {df_operadoras[df_operadoras['registro_operadora'] == cod_selecionado]['cnpj'].values[0]}")
-
-    else:
-        st.error("Nenhuma operadora carregada do banco de dados.")
+    if df_mestre.empty:
+        st.error("Erro: Base de dados vazia.")
         st.stop()
 
-    # --- ÁREA PRINCIPAL ---
-    st.title("📊 Painel Estratégico ANS")
-    st.markdown("Visualize os dados comparativos das operadoras de saúde.")
+    # --- CABEÇALHO ---
+    st.title("📊 Monitoramento de Mercado ANS")
+    st.markdown("Analise a performance das operadoras de planos de saúde do Brasil.")
     
-    st.divider()
+    # --- NAVEGAÇÃO ENTRE ABAS ---
+    # Aqui vamos criando as abas conforme formos desenvolvendo as próximas etapas
+    tab1, tab2, tab3 = st.tabs([
+        "🌍 Panorama de Mercado (Top Players)", 
+        "🎯 Análise da Minha Operadora", 
+        "📈 Comparativo de Evolução"
+    ])
 
-    # Apenas para debug/visualização inicial: Mostra o DF bruto carregado
-    st.subheader("Base de Operadoras Disponíveis")
-    st.dataframe(
-        df_operadoras, 
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "registro_operadora": "Reg. ANS",
-            "razao_social": "Razão Social",
-            "cnpj": "CNPJ",
-            "nome_fantasia": "Nome Fantasia"
-        }
-    )
+    # --- ABA 1: PANORAMA (O que fizemos hoje) ---
+    with tab1:
+        # Chamamos a função do arquivo vis_panorama.py
+        # Passamos o DataFrame inteiro, a função lá dentro filtra o que precisa
+        render_panorama_mercado(df_mestre)
 
-# Executa a aplicação
+    # --- ABA 2: Placeholder (Faremos depois) ---
+    with tab2:
+        st.info("🚧 Em construção: Aqui entrará a análise detalhada da Unimed Caruaru.")
+
+    # --- ABA 3: Placeholder (Faremos depois) ---
+    with tab3:
+        st.info("🚧 Em construção: Aqui entrarão os gráficos de tendência.")
+
 if __name__ == "__main__":
     main()
