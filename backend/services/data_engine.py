@@ -10,19 +10,22 @@ class DataEngine:
         print("Carregando tabelas para memória...")
         
         # 1. Dimensão Operadoras
+        # Importante: Trazemos representante e cargo_representante explicitamente
         sql_dim = """
-            SELECT registro_operadora, cnpj, razao_social, uf, cidade, modalidade, representante, cargo_representante 
+            SELECT 
+                registro_operadora, cnpj, razao_social, uf, modalidade,
+                cidade, representante, cargo_representante
             FROM dim_operadoras
         """
-        df_dim = self.connector.executar_query(sql_dim)
+        df_dim = self.connector.execute_query(sql_dim)
 
         # 2. Beneficiários
         sql_ben = "SELECT CD_OPERADO, ID_TRIMESTRE, NR_BENEF_T FROM beneficiarios_agrupados"
-        df_ben = self.connector.executar_query(sql_ben)
+        df_ben = self.connector.execute_query(sql_ben)
 
         # 3. Financeiro
         sql_fin = "SELECT REG_ANS, ID_TRIMESTRE, VL_SALDO_FINAL FROM demonstracoes_contabeis"
-        df_fin = self.connector.executar_query(sql_fin)
+        df_fin = self.connector.execute_query(sql_fin)
 
         return df_dim, df_ben, df_fin
 
@@ -35,17 +38,14 @@ class DataEngine:
         if df_dim.empty: return pd.DataFrame()
 
         # --- PREPARAÇÃO DE TIPOS ---
+        # Garante que as chaves de join sejam string e sem espaços
         df_dim['registro_operadora'] = df_dim['registro_operadora'].astype(str).str.strip()
         df_ben['CD_OPERADO'] = df_ben['CD_OPERADO'].astype(str).str.strip()
         df_fin['REG_ANS'] = df_fin['REG_ANS'].astype(str).str.strip()
 
-        # --- NOVA ETAPA: FILTRO TEMPORAL (>= 2012-T1) ---
-        # Aplicamos antes do Merge para o processo ser mais leve e rápido
+        # --- FILTRO TEMPORAL (>= 2012-T1) ---
         DATA_CORTE = '2012-T1'
         
-        print(f"Aplicando filtro temporal: >= {DATA_CORTE}")
-        
-        # Como o formato é 'AAAA-TX', a comparação de string funciona perfeitamente
         if not df_ben.empty:
             df_ben = df_ben[df_ben['ID_TRIMESTRE'] >= DATA_CORTE]
             
@@ -64,7 +64,7 @@ class DataEngine:
         # Unificar coluna de Operadora
         df_mestre['ID_OPERADORA'] = df_mestre['CD_OPERADO'].fillna(df_mestre['REG_ANS'])
         
-        # Preencher vazios
+        # Preencher vazios numéricos com 0
         df_mestre['NR_BENEF_T'] = df_mestre['NR_BENEF_T'].fillna(0)
         df_mestre['VL_SALDO_FINAL'] = df_mestre['VL_SALDO_FINAL'].fillna(0)
 
@@ -77,14 +77,17 @@ class DataEngine:
             how='left'
         )
 
-        # Seleção de colunas finais
-        cols_para_manter = [
+        # Seleção de colunas finais - AQUI ESTAVA O POSSÍVEL ERRO
+        # Precisamos garantir que representante e cargo estejam nesta lista
+        cols_desejadas = [
             'ID_TRIMESTRE', 'ID_OPERADORA', 'razao_social', 'cnpj', 'uf', 'modalidade',
+            'cidade', 'representante', 'cargo_representante', 
             'NR_BENEF_T', 'VL_SALDO_FINAL'
         ]
         
-        cols_finais = [c for c in cols_para_manter if c in df_final.columns]
-        df_final = df_final[cols_finais]
+        # Filtra apenas as que realmente existem no DF (para evitar erro de KeyError)
+        cols_existentes = [c for c in cols_desejadas if c in df_final.columns]
+        df_final = df_final[cols_existentes]
 
         # --- KPI CALCULADO ---
         df_final['CUSTO_POR_VIDA'] = df_final.apply(
@@ -92,8 +95,4 @@ class DataEngine:
             axis=1
         )
 
-        # Ordenação final para garantir gráficos bonitos
-        df_final = df_final.sort_values(['ID_OPERADORA', 'ID_TRIMESTRE'])
-
-        print(f"Dataset Mestre Gerado (Pós-2012): {len(df_final)} linhas.")
-        return df_final
+        return df_final.sort_values(['ID_OPERADORA', 'ID_TRIMESTRE'])
