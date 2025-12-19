@@ -97,6 +97,10 @@ def render_panorama_mercado(df_mestre):
     texto_contexto = f"Filtro: {', '.join(sel_modalidade)}" if sel_modalidade else "Mercado Total"
     total_vidas = df_snapshot['NR_BENEF_T'].sum()
     total_receita = df_snapshot['VL_SALDO_FINAL'].sum()
+    
+    # Dados de Gestão (Tratamento)
+    rep_nome = str(top_1.get('representante') or 'Não Informado').title()
+    rep_cargo = str(top_1.get('cargo_representante') or '').title()
 
     # --- CARD DO LÍDER ---
     st.caption(f"📅 Referência: **{sel_trimestre}** | 🔍 {texto_contexto}")
@@ -108,7 +112,13 @@ def render_panorama_mercado(df_mestre):
             st.caption("Líder do Trimestre")
         with c_info:
             st.markdown(f"## {top_1['razao_social']}")
-            st.markdown(f"**CNPJ:** {top_1['cnpj']} | **Modalidade:** {top_1['modalidade']}")
+            
+            # --- AJUSTE AQUI: Gestão no Cabeçalho ---
+            st.markdown(f"""
+            **CNPJ:** {top_1['cnpj']} | **Modalidade:** {top_1['modalidade']}  
+            👤 **Gestão:** {rep_nome} — *{rep_cargo}*
+            """)
+            
             st.progress(int(top_1['Power_Score']) / 100, text=f"Power Score: {top_1['Power_Score']:.1f}/100")
 
         st.divider()
@@ -129,9 +139,7 @@ def render_panorama_mercado(df_mestre):
 
         k4.metric("📍 Sede", f"{str(top_1.get('cidade','')).title()}/{str(top_1.get('uf',''))}")
 
-        nome = str(top_1.get('representante') or 'Não Informado').title()
-        cargo = str(top_1.get('cargo_representante') or '').title()
-        st.info(f"**Gestão:** {nome} — *{cargo}*")
+        # Removemos o st.info antigo daqui
 
     st.divider()
 
@@ -197,7 +205,7 @@ def render_panorama_mercado(df_mestre):
             st.plotly_chart(fig_rec, use_container_width=True)
 
     # ==============================
-    # ABA 2: SPREAD DE VIDAS (NOVO)
+    # ABA 2: SPREAD DE VIDAS
     # ==============================
     with tab_vidas:
         st.markdown("**Análise de Carteira:** Diferença entre o crescimento de **Vidas** da operadora e a mediana do mercado.")
@@ -208,7 +216,6 @@ def render_panorama_mercado(df_mestre):
         s_top1_vid_pct = df_top1_vid['NR_BENEF_T'].pct_change() * 100
 
         # 2. Série Mercado Vidas (Mediana)
-        # Usamos VAR_PCT_VIDAS que já vem calculado da DataEngine
         df_mkt_vid = df_mercado_filtrado.groupby('ID_TRIMESTRE')['VAR_PCT_VIDAS'].median() * 100
         s_mkt_vid_pct = df_mkt_vid.reindex(timeline_completa)
         
