@@ -154,7 +154,7 @@ def render_analise(df_mestre):
             # ATUALIZAÇÃO AQUI: Representante abaixo do CNPJ
             st.markdown(f"""
             **CNPJ:** {op_dados['cnpj']} | **Modalidade:** {op_dados['modalidade']}  
-            👤 **Gestão:** {rep_nome} — *{rep_cargo}* |📍 **Sede**: {cidade} / {uf} 
+            👤 **Gestão:** {rep_nome} — *{rep_cargo}* |📍 **Sede**: {cidade}/{uf} 
             """)
             
             # Barra de Score
