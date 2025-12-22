@@ -2,7 +2,7 @@ import streamlit as st
 
 def render_glossary():
     with st.expander("📚 Glossário de Análise"):
-        t_kpi, t_comp, t_estr, t_calc = st.tabs(["KPIs", "Comparativos", "Estratégia", "🧮 Cálculos (p.p.)"])
+        t_kpi, t_comp, t_estr, t_calc = st.tabs(["KPIs", "Comparativos", "Estratégia", "🧮 Cálculos"])
         
         with t_kpi:
             st.markdown("""
@@ -25,24 +25,25 @@ def render_glossary():
                 * 🟩 **Verde:** Cresceu acima da média.
                 * 🟥 **Vermelho:** Cresceu abaixo da média.
             * **Share of Brand:** Tamanho da operadora dentro do seu grupo econômico.
+            **Indicadores de Grupo:**
+            * **Média Cresc. Receita (Grupo):** É a mediana do crescimento financeiro de todas as operadoras do mesmo grupo.
+                * *Para que serve?* Define o ritmo "normal" do grupo. Se você cresceu 10% e a média do grupo foi 15%, você está puxando o grupo para baixo.
             """)
         
         # --- NOVO TÓPICO SOLICITADO ---
         with t_calc:
             st.markdown("""
-            ### 📐 O que é Ponto Percentual (p.p.)?
-            É a unidade usada para descrever a **diferença aritmética** entre duas porcentagens.
+            ### 📐 Ponto Percentual (p.p.)
+            Diferença aritmética entre duas porcentagens.
+            *Ex: Se você cresceu 15% e o mercado 10%, seu ganho real foi de 5 p.p.*
             
-            **A Fórmula:**
-            $$Spread = \% Crescimento Operadora - \% Crescimento Mercado$$ # type: ignore # pyright: ignore[reportInvalidStringEscapeSequence] # pyright: ignore[reportInvalidStringEscapeSequence] # pyright: ignore[reportInvalidStringEscapeSequence] # type: ignore # type: ignore
+            ### ⚡ Volatilidade (Risco)
+            Mede a instabilidade do fluxo de caixa da operadora.
             
-            **💡 Exemplo Prático:**
-            Imagine o seguinte cenário no trimestre:
-            1. O Mercado cresceu **10%**.
-            2. Sua Operadora cresceu **15%**.
+            **Como é calculado:**
+            Calculamos o **Desvio Padrão** das variações percentuais de receita dos últimos **8 trimestres (2 anos)**.
             
-            * **Cálculo Errado:** Dizer que cresceu 50% a mais (15 é 50% maior que 10). Isso confunde.
-            * **Cálculo Correto (p.p.):** $15\% - 10\% = 5 p.p.$ # type: ignore # pyright: ignore[reportInvalidStringEscapeSequence] # pyright: ignore[reportInvalidStringEscapeSequence]
-            
-            Isso significa que sua operadora ganhou **5 pontos percentuais** de vantagem ("terreno") sobre a média da concorrência.
+            **Interpretação:**
+            * **Baixa (< 5%):** Receita previsível e estável.
+            * **Alta (> 15%):** Receita oscila muito (sazonalidade forte ou perda/ganho brusco de contratos).
             """)

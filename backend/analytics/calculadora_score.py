@@ -46,3 +46,32 @@ def calcular_power_score(df: pd.DataFrame) -> pd.DataFrame:
     ) * 100
     
     return df_calc.sort_values(by='Power_Score', ascending=False).reset_index(drop=True)
+
+def calcular_score_financeiro(df_input):
+    """
+    Calcula um Score focado apenas em Receita (0-100).
+    Peso: 70% Volume de Receita + 30% Crescimento de Receita.
+    """
+    df = df_input.copy()
+    
+    # Normalização Logarítmica para Receita (para não distorcer com gigantes)
+    log_receita = np.log1p(df['VL_SALDO_FINAL'])
+    min_rec = log_receita.min()
+    max_rec = log_receita.max()
+    score_vol = ((log_receita - min_rec) / (max_rec - min_rec)).fillna(0) * 100
+    
+    # Normalização de Crescimento Financeiro
+    # Clipamos entre -50% e +50% para evitar distorções de outliers
+    growth = df['VAR_PCT_RECEITA'].clip(-0.5, 0.5)
+    min_g = growth.min()
+    max_g = growth.max()
+    
+    if max_g > min_g:
+        score_growth = ((growth - min_g) / (max_g - min_g)).fillna(0) * 100
+    else:
+        score_growth = 50
+        
+    # Cálculo Final (70% Volume, 30% Performance)
+    df['Revenue_Score'] = (score_vol * 0.7) + (score_growth * 0.3)
+    
+    return df.sort_values('Revenue_Score', ascending=False)    

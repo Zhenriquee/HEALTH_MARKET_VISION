@@ -172,7 +172,7 @@ def render_analise(df_mestre):
     # Tabela 2: Ranking Geral
     # Aqui usamos o Rank_Geral real que calculamos, pois na tabela geral queremos saber a posição absoluta
     df_view_geral = df_score.sort_values('Power_Score', ascending=False).copy()
-    df_view_geral['#'] = df_view_geral['Rank_Geral']
+    df_view_geral['#'] = df_view_geral['Rank_Geral'].astype(int)
     
     render_ranking_table(
         df_view_geral, 

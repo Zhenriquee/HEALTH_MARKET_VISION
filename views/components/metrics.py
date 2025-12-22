@@ -40,3 +40,73 @@ def render_kpi_row(kpis, rank_grupo_info=None):
         else:
             # Se for apenas uma string (ex: Sede)
             k4.metric("📍 Info", str(rank_grupo_info))
+
+def render_revenue_kpi_row(kpis, kpis_avancados, rank_grupo_info=None):
+    """
+    Renderiza linha de KPIs focada em Receita com 6 indicadores.
+    """
+    # --- LINHA 1: Core Financeiro ---
+    k1, k2, k3 = st.columns(3)
+
+    # 1. Receita Total
+    val_receita = formatar_moeda_kpi(kpis['Receita'])
+    k1.metric(
+        "💰 Receita Total", 
+        val_receita,
+        delta=f"{kpis.get('Var_Receita_QoQ', 0):.1%} (QoQ)",
+        delta_color="normal"
+    )
+
+    # 2. Ticket Médio & Variação (Pricing Power)
+    val_ticket = formatar_moeda_kpi(kpis['Ticket'])
+    var_ticket = kpis_avancados.get('Var_Ticket', 0)
+    k2.metric(
+        "📊 Ticket Médio", 
+        val_ticket,
+        delta=f"{var_ticket:.1%} (QoQ)",
+        delta_color="normal",
+        help="Variação positiva indica ganho de poder de preço (Pricing Power)."
+    )
+    
+    # 3. Market Share Nacional (Share of Wallet)
+    share_br = kpis_avancados.get('Share_Nacional', 0)
+    k3.metric(
+        "🌎 Market Share (Brasil)", 
+        f"{share_br:.4f}%",
+        help="Participação na receita total do mercado brasileiro."
+    )
+    
+    st.markdown("") # Espaçamento
+    
+    # --- LINHA 2: Estratégico ---
+    k4, k5, k6 = st.columns(3)
+
+    # 4. Share UF (Concentração)
+    share_uf = kpis_avancados.get('Share_UF', 0)
+    uf = kpis_avancados.get('UF', 'UF')
+    k4.metric(
+        f"📍 Share Estadual ({uf})", 
+        f"{share_uf:.2f}%",
+        help=f"Participação na receita total do estado de {uf}."
+    )
+    
+    # 5. CAGR (Tendência Estrutural)
+    cagr = kpis_avancados.get('CAGR_1Ano', 0)
+    k5.metric(
+        "📈 Crescimento Anual (CAGR)", 
+        f"{cagr:.1%}",
+        delta="12 Meses",
+        help="Taxa de Crescimento Composto no último ano."
+    )
+
+    # 6. Volatilidade (Risco)
+    vol = kpis_avancados.get('Volatilidade', 0)
+    # Lógica de cor invertida para risco: muito alto pode ser ruim (vermelho), baixo é estável (verde/cinza)
+    # Mas o Streamlit delta padrão: verde = positivo (cima). Vamos usar inverse_delta se quiser.
+    # Aqui usaremos cor neutra (off) ou normal.
+    k6.metric(
+        "⚡ Volatilidade (Risco)", 
+        f"{vol:.2f}%",
+        help="Desvio padrão das variações de receita. Quanto maior, mais instável o fluxo de caixa.",
+        delta_color="off"
+    )
