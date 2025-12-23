@@ -18,6 +18,8 @@ def render_analise(df_mestre):
     # --- 1. CONTROLLER DA VIEW (Sidebar & Filtros) ---
     with st.sidebar:
         st.header("⚙️ Configuração")
+
+        st.divider()
         
         # Filtro de Trimestre
         try:
@@ -54,6 +56,9 @@ def render_analise(df_mestre):
         if not lista_ops: st.warning("Sem operadoras."); return
         sel_op_nome = st.selectbox("3️⃣ Operadora:", lista_ops, index=idx_def)
         id_op = map_ops[sel_op_nome]
+        
+        st.session_state["filtro_id_op"] = id_op
+        st.session_state["filtro_trimestre"] = sel_trimestre
         
         st.markdown("---")
         render_glossary()
