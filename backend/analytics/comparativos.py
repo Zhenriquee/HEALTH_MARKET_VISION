@@ -159,3 +159,53 @@ def calcular_kpis_financeiros_avancados(df_mestre, id_operadora, trimestre_atual
         'CAGR_1Ano': cagr,
         'Volatilidade': volatilidade
     }
+
+def calcular_kpis_vidas_avancados(df_mestre, id_operadora, trimestre_atual):
+    """
+    Calcula indicadores estratégicos para a tela de Vidas.
+    """
+    # 1. Preparação
+    df_op = df_mestre[df_mestre['ID_OPERADORA'] == str(id_operadora)].copy()
+    
+    # Janela Temporal (Visão do Passado)
+    df_hist_window = df_op[df_op['ID_TRIMESTRE'] <= trimestre_atual].sort_values('ID_TRIMESTRE')
+    
+    if df_hist_window.empty or df_hist_window.iloc[-1]['ID_TRIMESTRE'] != trimestre_atual:
+        return None
+        
+    row_atual = df_hist_window.iloc[[-1]]
+    df_tri_mercado = df_mestre[df_mestre['ID_TRIMESTRE'] == trimestre_atual]
+    
+    # Valores
+    vidas_op = row_atual['NR_BENEF_T'].values[0]
+    uf_op = row_atual['uf'].values[0]
+    
+    # 2. Market Share Vidas (Nacional)
+    total_vidas_br = df_tri_mercado['NR_BENEF_T'].sum()
+    share_br = (vidas_op / total_vidas_br) * 100 if total_vidas_br > 0 else 0
+    
+    # 3. Share UF (Vidas)
+    total_vidas_uf = df_tri_mercado[df_tri_mercado['uf'] == uf_op]['NR_BENEF_T'].sum()
+    share_uf = (vidas_op / total_vidas_uf) * 100 if total_vidas_uf > 0 else 0
+    
+    # 4. CAGR Vidas (1 Ano)
+    df_cagr_window = df_hist_window.tail(5)
+    if len(df_cagr_window) >= 5:
+        start_val = df_cagr_window.iloc[0]['NR_BENEF_T']
+        end_val = df_cagr_window.iloc[-1]['NR_BENEF_T']
+        cagr = (end_val / start_val) - 1 if start_val > 0 else 0
+    else:
+        cagr = 0 
+        
+    # 5. Volatilidade de Vidas (Estabilidade da carteira)
+    df_vol_window = df_hist_window.tail(8)
+    volatilidade = df_vol_window['VAR_PCT_VIDAS'].std() * 100 
+    if pd.isna(volatilidade): volatilidade = 0
+
+    return {
+        'Share_Nacional': share_br,
+        'Share_UF': share_uf,
+        'UF': uf_op,
+        'CAGR_1Ano': cagr,
+        'Volatilidade': volatilidade
+    }    

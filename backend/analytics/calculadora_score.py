@@ -75,3 +75,31 @@ def calcular_score_financeiro(df_input):
     df['Revenue_Score'] = (score_vol * 0.7) + (score_growth * 0.3)
     
     return df.sort_values('Revenue_Score', ascending=False)    
+
+def calcular_score_vidas(df_input):
+    """
+    Calcula um Score focado em Carteira de Vidas (0-100).
+    Peso: 70% Volume de Vidas + 30% Crescimento de Vidas.
+    """
+    df = df_input.copy()
+    
+    # Normalização Logarítmica para Vidas
+    log_vidas = np.log1p(df['NR_BENEF_T'])
+    min_vid = log_vidas.min()
+    max_vid = log_vidas.max()
+    score_vol = ((log_vidas - min_vid) / (max_vid - min_vid)).fillna(0) * 100
+    
+    # Normalização de Crescimento de Vidas
+    growth = df['VAR_PCT_VIDAS'].clip(-0.5, 0.5)
+    min_g = growth.min()
+    max_g = growth.max()
+    
+    if max_g > min_g:
+        score_growth = ((growth - min_g) / (max_g - min_g)).fillna(0) * 100
+    else:
+        score_growth = 50
+        
+    # Cálculo Final
+    df['Lives_Score'] = (score_vol * 0.7) + (score_growth * 0.3)
+    
+    return df.sort_values('Lives_Score', ascending=False)    

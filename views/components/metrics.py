@@ -110,3 +110,64 @@ def render_revenue_kpi_row(kpis, kpis_avancados, rank_grupo_info=None):
         help="Desvio padrão das variações de receita. Quanto maior, mais instável o fluxo de caixa.",
         delta_color="off"
     )
+
+def render_lives_kpi_row(kpis, kpis_avancados, rank_grupo_info=None):
+    """
+    Renderiza linha de KPIs focada em Vidas (Volume).
+    """
+    k1, k2, k3 = st.columns(3)
+
+    # 1. Vidas Totais
+    k1.metric(
+        "👥 Carteira de Vidas", 
+        f"{int(kpis['Vidas']):,}".replace(",", "."), 
+        delta=f"{kpis.get('Var_Vidas_QoQ', 0):.1%} (QoQ)",
+        delta_color="normal"
+    )
+
+    # 2. Ticket Médio (Mantido como contexto financeiro da carteira)
+    val_ticket = formatar_moeda_kpi(kpis['Ticket'])
+    k2.metric(
+        "📊 Ticket Médio", 
+        val_ticket,
+        help="Valor médio pago por vida."
+    )
+    
+    # 3. Market Share Vidas
+    share_br = kpis_avancados.get('Share_Nacional', 0)
+    k3.metric(
+        "🌎 Share Vidas (Brasil)", 
+        f"{share_br:.4f}%",
+        help="Participação no total de beneficiários do Brasil."
+    )
+    
+    st.markdown("")
+    
+    k4, k5, k6 = st.columns(3)
+
+    # 4. Share UF
+    share_uf = kpis_avancados.get('Share_UF', 0)
+    uf = kpis_avancados.get('UF', 'UF')
+    k4.metric(
+        f"📍 Share Vidas ({uf})", 
+        f"{share_uf:.2f}%",
+        help=f"Participação no total de beneficiários de {uf}."
+    )
+    
+    # 5. CAGR Vidas
+    cagr = kpis_avancados.get('CAGR_1Ano', 0)
+    k5.metric(
+        "📈 Crescimento Carteira (CAGR)", 
+        f"{cagr:.1%}",
+        delta="12 Meses",
+        help="Taxa de crescimento anual composta da carteira."
+    )
+
+    # 6. Volatilidade Vidas
+    vol = kpis_avancados.get('Volatilidade', 0)
+    k6.metric(
+        "⚡ Volatilidade Carteira", 
+        f"{vol:.2f}%",
+        help="Instabilidade da base de clientes (Entradas/Saídas bruscas).",
+        delta_color="off"
+    )    
