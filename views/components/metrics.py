@@ -39,7 +39,7 @@ def render_kpi_row(kpis, rank_grupo_info=None):
             k4.metric(f"🏢 Rank {nome_grupo}", f"#{rank}", f"de {total} ops", delta_color="off")
         else:
             # Se for apenas uma string (ex: Sede)
-            k4.metric("📍 Info", str(rank_grupo_info))
+            k4.metric("📍 Sede", str(rank_grupo_info))
 
 def render_revenue_kpi_row(kpis, kpis_avancados, rank_grupo_info=None):
     """

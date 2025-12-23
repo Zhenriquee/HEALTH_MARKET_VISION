@@ -35,14 +35,14 @@ def render_styled_ranking_table(df, titulo=None):
     # 3. Formatação de Valores (Moeda BR e Percentual)
     styler.format({
         'Score': "{:.1f}",
-        'Vidas': "{:,.0f}", # Formato base, o Streamlit ajusta o milhar depois visualmente se precisar, ou usamos string
+        'Vidas': "{:,.0f}", 
         'Δ Vol (%)': "{:.2%}",
         'Δ Fin (%)': "{:.2%}",
-        'Receita (R$)': formatar_moeda_br # Aplica a função customizada
+        'Receita (R$)': formatar_moeda_br 
     })
     
-    # 4. Renderiza
-    st.dataframe(styler, use_container_width=True, height=800, hide_index=True)
+    # 4. Renderiza (CORRIGIDO AQUI: width="stretch")
+    st.dataframe(styler, width="stretch", height=800, hide_index=True)
 
 def render_ranking_table(df, titulo=None, subtitulo=None):
     """
@@ -57,7 +57,6 @@ def render_ranking_table(df, titulo=None, subtitulo=None):
         'VL_SALDO_FINAL': 'Receita (R$)'
     }
     
-    # Define qual coluna será o Rank
     if '#' in df.columns: cols_map['#'] = 'Rank'
     elif 'Rank_Geral' in df.columns: cols_map['Rank_Geral'] = 'Rank'
     elif 'Rank_Grupo' in df.columns: cols_map['Rank_Grupo'] = 'Rank'
@@ -65,11 +64,11 @@ def render_ranking_table(df, titulo=None, subtitulo=None):
     cols_presentes = [c for c in cols_map.keys() if c in df.columns]
     df_view = df[cols_presentes].rename(columns=cols_map).copy()
     
-    # Aplicando formatação visual via Pandas Styler para garantir o R$ correto
     styler = df_view.style.format({
         'Score': "{:.1f}",
         'Vidas': "{:.0f}",
         'Receita (R$)': formatar_moeda_br
     })
 
-    st.dataframe(styler, use_container_width=True, hide_index=True)
+    # (CORRIGIDO AQUI: width="stretch")
+    st.dataframe(styler, width="stretch", hide_index=True)

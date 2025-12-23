@@ -1,98 +1,118 @@
 import streamlit as st
-import pandas as pd
+import traceback # Para logar erros detalhados se necessário
 
-# Imports Backend
-from backend.analytics.filtros_mercado import filtrar_por_modalidade
-from backend.analytics.calculadora_score import calcular_power_score
-from backend.analytics.brand_intelligence import extrair_marca
+# Imports da Arquitetura Limpa
+from backend.use_cases.market_overview import MarketOverviewUseCase
+from backend.exceptions import AppError
 
-# Imports Components
+# Imports dos Componentes Visuais (Mantidos)
 from views.components.header import render_header
 from views.components.metrics import render_kpi_row
 from views.components.charts import render_spread_chart
-# IMPORTANTE: Importamos a nova função de tabela estilizada aqui
-from views.components.tables import render_styled_ranking_table 
+from views.components.tables import render_styled_ranking_table
 from views.components.glossary import render_glossary
 
 def render_panorama_mercado(df_mestre):
-    # --- SIDEBAR ---
+    # --- 1. CONFIGURAÇÃO (Inputs do Usuário) ---
     with st.sidebar:
         st.divider()
         st.header("⚙️ Filtros & Configuração")
         
-        opcoes_trimestre = sorted(df_mestre['ID_TRIMESTRE'].unique(), reverse=True)
-        sel_trimestre = st.selectbox("📅 Selecione o Trimestre:", options=opcoes_trimestre, index=0)
+        # Filtro Trimestre
+        try:
+            opcoes_trimestre = sorted(df_mestre['ID_TRIMESTRE'].unique(), reverse=True)
+            sel_trimestre = st.selectbox("📅 Selecione o Trimestre:", options=opcoes_trimestre, index=0)
+        except Exception:
+            st.error("Erro ao carregar lista de trimestres. Verifique a base de dados.")
+            return
 
         st.markdown("---")
-        opcoes_modalidade = sorted(df_mestre['modalidade'].dropna().unique())
-        sel_modalidade = st.multiselect("📌 Filtrar por Modalidade:", options=opcoes_modalidade, placeholder="Todas as Modalidades")
+        
+        # Filtro Modalidade
+        try:
+            opcoes_modalidade = sorted(df_mestre['modalidade'].dropna().unique())
+            sel_modalidade = st.multiselect("📌 Filtrar por Modalidade:", options=opcoes_modalidade, placeholder="Todas as Modalidades")
+        except Exception:
+            st.error("Erro ao carregar lista de modalidades.")
+            return
         
         st.markdown("---")
         render_glossary()
 
-    # --- PROCESSAMENTO ---
-    df_mercado_filtrado = filtrar_por_modalidade(df_mestre, sel_modalidade)
-    if df_mercado_filtrado.empty: st.warning("Sem dados."); return
+    # --- 2. EXECUÇÃO DO CASO DE USO (Processamento) ---
+    try:
+        # Instancia o Caso de Uso
+        use_case = MarketOverviewUseCase(df_mestre)
+        
+        # Executa a lógica (aqui ocorrem os cálculos, filtros e validações)
+        resultado = use_case.execute(trimestre=sel_trimestre, modalidades=sel_modalidade)
+        
+        # Desempacota os dados retornados (ViewModel)
+        lider = resultado['lider']
+        top_30 = resultado['ranking_top_30']
+        texto_contexto = resultado['contexto_filtro']
+        # Atualiza a referência do df_mestre local caso o UseCase tenha enriquecido dados (ex: Marcas)
+        df_mestre_enriched = resultado['df_mestre_atualizado'] 
 
-    df_snapshot = df_mercado_filtrado[df_mercado_filtrado['ID_TRIMESTRE'] == sel_trimestre].copy()
-    if df_snapshot.empty: st.warning("Sem dados para o trimestre."); return
+    except AppError as e:
+        # Erros de negócio esperados (ex: Filtro vazio)
+        st.warning(f"Atenção: {str(e)}")
+        return
+    except Exception as e:
+        # Erros críticos de sistema
+        st.error(f"Ocorreu um erro crítico ao processar o painel: {str(e)}")
+        with st.expander("Ver detalhes técnicos"):
+            st.code(traceback.format_exc())
+        return
 
-    # Ranking
-    df_ranqueado = calcular_power_score(df_snapshot)
-    df_ranqueado['Rank_Geral'] = df_ranqueado['Power_Score'].rank(ascending=False, method='min')
-    df_ranqueado['#'] = range(1, len(df_ranqueado) + 1)
+    # --- 3. RENDERIZAÇÃO (Visualização) ---
     
-    # Líder
-    top_1 = df_ranqueado.iloc[0]
-    id_top_1 = str(top_1['ID_OPERADORA'])
-    
-    texto_contexto = f"Filtro: {', '.join(sel_modalidade)}" if sel_modalidade else "Mercado Total"
-
-    kpis_lider = {
-        'Vidas': top_1['NR_BENEF_T'],
-        'Receita': top_1['VL_SALDO_FINAL'],
-        'Ticket': top_1['VL_SALDO_FINAL'] / top_1['NR_BENEF_T'] if top_1['NR_BENEF_T'] > 0 else 0,
-        'Var_Vidas_QoQ': top_1['VAR_PCT_VIDAS'],
-        'Var_Receita_QoQ': top_1['VAR_PCT_RECEITA']
-    }
-
-    # --- RENDERIZAÇÃO ---
+    # Cabeçalho de Contexto
     st.caption(f"📅 Referência: **{sel_trimestre}** | 🔍 {texto_contexto}")
 
-    # 1. Header Líder
-    render_header(top_1, 1, top_1['Power_Score'])
+    # 1. Header do Líder
+    render_header(lider['dados'], 1, lider['dados']['Power_Score'])
 
     st.divider()
     
-    # 2. KPIs Líder
-    local_sede = f"{str(top_1.get('cidade','')).title()}/{str(top_1.get('uf',''))}"
-    k1, k2, k3, k4 = st.columns(4)
-    with k1: st.metric("👥 Vidas", f"{int(kpis_lider['Vidas']):,}".replace(",", "."), delta=f"{kpis_lider['Var_Vidas_QoQ']:.2%} (Vol)")
-    with k2: st.metric("💰 Receita", f"R$ {kpis_lider['Receita']:,.2f}", delta=f"{kpis_lider['Var_Receita_QoQ']:.2%} (Fin)")
-    with k3: st.metric("📊 Ticket Médio", f"R$ {kpis_lider['Ticket']:,.2f}")
-    with k4: st.metric("📍 Sede", local_sede)
+    # 2. KPIs do Líder
+    # Adaptador para o componente render_kpi_row (que espera dicionário de KPIs)
+    # Aqui passamos a 'Sede' no parâmetro opcional rank_grupo_info para preencher o 4º card
+    render_kpi_row(lider['kpis'], rank_grupo_info=lider['kpis']['Sede'])
     
     st.divider()
 
-    # 3. Gráficos Spread
-    st.subheader(f"📊 Performance Relativa: {top_1['razao_social']} vs Mercado")
+    # 3. Gráficos de Performance Relativa (Spread)
+    st.subheader(f"📊 Performance Relativa: {lider['dados']['razao_social']} vs Mercado")
+    
     tab_rec, tab_vid = st.tabs(["💰 Spread Receita", "👥 Spread Vidas"])
     
-    if 'Marca_Temp' not in df_mestre.columns:
-        df_mestre['Marca_Temp'] = df_mestre['razao_social'].apply(extrair_marca)
-
     with tab_rec:
-        fig = render_spread_chart(df_mestre, id_top_1, top_1['razao_social'], "Receita", "Mercado Geral")
+        fig = render_spread_chart(
+            df_mestre_enriched, # Usa o DF enriquecido pelo UseCase
+            lider['id'], 
+            lider['dados']['razao_social'], 
+            "Receita", 
+            "Mercado Geral"
+        )
         if fig: st.plotly_chart(fig, use_container_width=True)
+        else: st.info("Dados insuficientes para gerar gráfico de receita.")
     
     with tab_vid:
-        fig = render_spread_chart(df_mestre, id_top_1, top_1['razao_social'], "Vidas", "Mercado Geral")
+        fig = render_spread_chart(
+            df_mestre_enriched, 
+            lider['id'], 
+            lider['dados']['razao_social'], 
+            "Vidas", 
+            "Mercado Geral"
+        )
         if fig: st.plotly_chart(fig, use_container_width=True)
+        else: st.info("Dados insuficientes para gerar gráfico de vidas.")
 
     st.divider()
 
-    # 4. Tabela Ranking COLORIDA (Componente Novo)
+    # 4. Tabela de Ranking (Estilizada)
     render_styled_ranking_table(
-        df_ranqueado.head(30), 
+        top_30, 
         titulo=f"🏆 Top 30 Ranking do Trimestre {sel_trimestre}"
     )
