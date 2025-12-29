@@ -75,7 +75,7 @@ class OperatorAnalysisUseCase:
                 raise FilterError(f"Operadora ID {id_operadora} não encontrada no trimestre {trimestre}.")
 
             dados_op = row_op.iloc[0]
-            marca = extrair_marca(dados_op['razao_social'])
+            marca = extrair_marca(dados_op['razao_social'], dados_op['ID_OPERADORA'])
 
             # 2. Cálculos de Score e Rankings
             try:
