@@ -1,4 +1,5 @@
 import pandas as pd 
+from pathlib import Path
 from backend.repository import AnsRepository
 
 class FilterService:
@@ -9,7 +10,11 @@ class FilterService:
         """ esse metodo tem como objetivo retornar todas as operadoras disponiveis na base de dados
         as colunas são: registro operadora, cnpj, razao social e nome fantasia
         """
-        df = self.repo.buscar_dados_brutos('/workspaces/ANALISE_OPERADORAS/queries/filtros/listar_todas_operadoras.sql')
+        base_dir = Path(__file__).resolve().parents[2]
+
+        sql_path = base_dir / 'queries' / 'filtros' / 'listar_todas_operadoras.sql'
+
+        df = self.repo.buscar_dados_brutos(sql_path)
         if df.empty:
             return pd.DataFrame()
         if 'nome_fantasia' in df.columns:
