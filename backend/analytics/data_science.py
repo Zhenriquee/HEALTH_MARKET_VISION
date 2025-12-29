@@ -30,8 +30,6 @@ def preparar_dados_segmentacao(df_mestre, trimestre):
     total_receita = df_tri['VL_SALDO_FINAL'].sum()
     df_tri['Market_Share'] = (df_tri['VL_SALDO_FINAL'] / total_receita) * 100
     
-    # Filtra outliers extremos de crescimento para não quebrar o gráfico visualmente
-    # (Opcional, mas recomendado para visualização limpa)
     df_clean = df_tri[
         (df_tri['VAR_PCT_RECEITA'] > -0.5) & 
         (df_tri['VAR_PCT_RECEITA'] < 1.0)
@@ -64,13 +62,10 @@ def _preparar_dados_clustering(df_mestre, trimestre):
     if 'Ticket_Medio' not in df_tri.columns:
         df_tri['Ticket_Medio'] = df_tri['VL_SALDO_FINAL'] / df_tri['NR_BENEF_T']
     
-    # Features do Modelo
     features = ['Log_Vidas', 'Log_Receita', 'VAR_PCT_VIDAS', 'VAR_PCT_RECEITA', 'Ticket_Medio']
     
-    # Limpeza
     df_model = df_tri.dropna(subset=features).replace([np.inf, -np.inf], 0).copy()
     
-    # Escalonamento
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(df_model[features])
     
@@ -116,11 +111,8 @@ def aplicar_kmeans_pca(df_mestre, trimestre, n_clusters=4, n_components=2):
     else:
         explained_var = pca.explained_variance_ratio_
     
-    # --- MUDANÇA AQUI: Agrupamento para Centroides ---
-    # Calculamos a média das métricas de negócio E das coordenadas PCA
     cols_stats = ['NR_BENEF_T', 'VL_SALDO_FINAL', 'VAR_PCT_VIDAS', 'VAR_PCT_RECEITA', 'Ticket_Medio']
     
-    # Adicionamos contagem para saber quantas operadoras tem no grupo
     df_centroids = df_model.groupby('Cluster_ID')[cols_stats + cols_coords].mean().reset_index()
     df_centroids['Qtd_Operadoras'] = df_model.groupby('Cluster_ID')['ID_OPERADORA'].count().values
     
