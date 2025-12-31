@@ -4,23 +4,51 @@ import pandas as pd
 from backend.analytics.movimentacao_mercado import calcular_fluxo_entrada_saida, gerar_analise_impacto
 from views.components.tables import formatar_moeda_br
 
-def render_movimentacao_mercado(df_mestre):
-    st.header("🔄 Movimentação de Mercado (Entradas & Saídas)")
-    st.markdown("Análise de fluxo de operadoras entre trimestres, com foco em impacto de vidas, receita e monitoramento da Rede Unimed.")
-    
-    # --- Filtros de Seleção ---
-    with st.container(border=True):
-        col1, col2 = st.columns(2)
-        lista_trimestres = sorted(df_mestre['ID_TRIMESTRE'].unique(), reverse=True)
-        
-        with col1:
-            tri_atual = st.selectbox("📅 Trimestre Referência (B):", lista_trimestres, index=0)   
-        with col2:
-            idx_anterior = 1 if len(lista_trimestres) > 1 else 0
-            tri_anterior = st.selectbox("📅 Trimestre Comparativo (A):", lista_trimestres, index=idx_anterior)
+# Imports dos Componentes Visuais (Padrão Sidebar)
+from views.components.sidebar_header import render_sidebar_header
+from views.components.footer import render_sidebar_footer
+from views.components.glossary import render_glossary
 
+def render_movimentacao_mercado(df_mestre):
+    # --- 1. CONTROLLER (Sidebar) ---
+    with st.sidebar:
+        render_sidebar_header()
+        st.divider()
+        st.header("⚙️ Configuração")
+        
+        # Filtros de Trimestre
+        try:
+            lista_trimestres = sorted(df_mestre['ID_TRIMESTRE'].unique(), reverse=True)
+            
+            tri_atual = st.selectbox(
+                "📅 Trimestre Referência (B):", 
+                lista_trimestres, 
+                index=0,
+                help="Trimestre mais recente (Onde as operadoras entraram ou saíram)."
+            )   
+            
+            idx_anterior = 1 if len(lista_trimestres) > 1 else 0
+            tri_anterior = st.selectbox(
+                "📅 Trimestre Comparativo (A):", 
+                lista_trimestres, 
+                index=idx_anterior,
+                help="Trimestre base (Quem estava aqui e não está mais?)"
+            )
+        except Exception:
+            st.error("Erro ao carregar lista de trimestres.")
+            return
+
+        st.markdown("---")
+        render_glossary()
+        render_sidebar_footer()
+
+    # --- 2. ÁREA PRINCIPAL ---
+    st.header("🔄 Movimentação de Mercado (Entradas & Saídas)")
+    st.markdown(f"Análise de fluxo entre **{tri_anterior}** (A) e **{tri_atual}** (B).")
+    
+    # Validação Básica
     if tri_atual == tri_anterior:
-        st.warning("⚠️ Selecione trimestres diferentes para realizar a comparação.")
+        st.warning("⚠️ Selecione trimestres diferentes na barra lateral para realizar a comparação.")
         return
 
     # --- Processamento ---
@@ -39,24 +67,24 @@ def render_movimentacao_mercado(df_mestre):
         c1.metric("Vidas Ganhas", f"{imp_geral['Vidas_Ganhas']:,.0f}".replace(",", "."), help="Soma de vidas das operadoras que entraram")
         c2.metric("Vidas Perdidas", f"{imp_geral['Vidas_Perdidas']:,.0f}".replace(",", "."), delta_color="inverse", help="Soma de vidas (no trimestre anterior) das que saíram")
         
-        # Saldo Vidas Geral (Com Delta Percentual)
+        # Saldo Vidas Geral
         saldo_v = imp_geral['Saldo_Vidas']
         pct_v = imp_geral['Pct_Saldo_Vidas']
         c3.metric(
             "Saldo Líquido Vidas", 
             f"{saldo_v:+,.0f}".replace(",", "."), 
             delta=f"{pct_v:+.2%}".replace(".", ","),
-            help="Diferença absoluta e variação percentual entre Ganhas vs Perdidas."
+            help="Diferença absoluta e variação percentual."
         )
         
-        # Saldo Receita Geral (Com Delta Percentual)
+        # Saldo Receita Geral
         saldo_r = imp_geral['Saldo_Receita']
         pct_r = imp_geral['Pct_Saldo_Receita']
         c4.metric(
             "Saldo Líquido Receita", 
             formatar_moeda_br(saldo_r), 
             delta=f"{pct_r:+.2%}".replace(".", ","),
-            help="Diferença absoluta e variação percentual entre Receita Ganha vs Perdida."
+            help="Diferença absoluta e variação percentual."
         )
 
     with t2:
@@ -64,7 +92,7 @@ def render_movimentacao_mercado(df_mestre):
         c1.metric("Unimeds Entrantes", imp_unimed['Qtd_Entrou'])
         c2.metric("Unimeds Saintes", imp_unimed['Qtd_Saiu'], delta_color="inverse")
         
-        # Saldo Vidas Unimed (Com Delta Percentual)
+        # Saldo Vidas Unimed
         saldo_v_uni = imp_unimed['Saldo_Vidas']
         pct_v_uni = imp_unimed['Pct_Saldo_Vidas']
         c3.metric(
@@ -73,7 +101,7 @@ def render_movimentacao_mercado(df_mestre):
             delta=f"{pct_v_uni:+.2%}".replace(".", ",")
         )
         
-        # Saldo Receita Unimed (Com Delta Percentual)
+        # Saldo Receita Unimed
         saldo_r_uni = imp_unimed['Saldo_Receita']
         pct_r_uni = imp_unimed['Pct_Saldo_Receita']
         c4.metric(
@@ -124,14 +152,14 @@ def render_movimentacao_mercado(df_mestre):
     with col_u_entrou:
         st.info(f"🟢 **Unimeds que Entraram** ({imp_unimed['Qtd_Entrou']})")
         if not imp_unimed['Entrantes_DF'].empty:
-            st.dataframe(preparar_tabela_exibicao(imp_unimed['Entrantes_DF']), hide_index=True, use_container_width=True)
+            st.dataframe(preparar_tabela_exibicao(imp_unimed['Entrantes_DF']), hide_index=True, width='stretch')
         else:
             st.caption("Nenhuma entrada registrada.")
 
     with col_u_saiu:
         st.error(f"🔴 **Unimeds que Saíram** ({imp_unimed['Qtd_Saiu']})")
         if not imp_unimed['Saintes_DF'].empty:
-            st.dataframe(preparar_tabela_exibicao(imp_unimed['Saintes_DF']), hide_index=True, use_container_width=True)
+            st.dataframe(preparar_tabela_exibicao(imp_unimed['Saintes_DF']), hide_index=True, width='stretch')
         else:
             st.caption("Nenhuma saída registrada.")
 
@@ -144,13 +172,13 @@ def render_movimentacao_mercado(df_mestre):
     
     with tab_e:
         if not df_entrantes.empty:
-            st.dataframe(preparar_tabela_exibicao(df_entrantes), use_container_width=True, hide_index=True)
+            st.dataframe(preparar_tabela_exibicao(df_entrantes), width="stretch", hide_index=True)
         else:
             st.info("Sem entrantes no período.")
 
     with tab_s:
         if not df_saintes.empty:
             st.markdown(f"ℹ️ *Dados financeiros e de vidas referentes ao último reporte em {tri_anterior}.*")
-            st.dataframe(preparar_tabela_exibicao(df_saintes), use_container_width=True, hide_index=True)
+            st.dataframe(preparar_tabela_exibicao(df_saintes), width="stretch", hide_index=True)
         else:
             st.info("Sem saídas no período.")

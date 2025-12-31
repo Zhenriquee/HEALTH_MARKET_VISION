@@ -34,6 +34,7 @@ def render_styled_ranking_table(df, titulo=None):
     
     # 3. Formatação de Valores (Moeda BR e Percentual)
     styler.format({
+        'Rank': "{:.0f}",
         'Score': "{:.1f}",
         'Vidas': "{:,.0f}", 
         'Δ Vol (%)': "{:.2%}",
@@ -65,6 +66,7 @@ def render_ranking_table(df, titulo=None, subtitulo=None):
     df_view = df[cols_presentes].rename(columns=cols_map).copy()
     
     styler = df_view.style.format({
+        'Rank': "{:.0f}",
         'Score': "{:.1f}",
         'Vidas': "{:.0f}",
         'Receita (R$)': formatar_moeda_br
