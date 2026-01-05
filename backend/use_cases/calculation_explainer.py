@@ -17,7 +17,12 @@ class CalculationExplainerUseCase:
         if df_tri.empty:
             raise FilterError(f"Sem dados no trimestre {trimestre}")
 
-        df_tri['Marca_Temp'] = df_tri['razao_social'].apply(extrair_marca)
+        # CORREÇÃO 1: Uso de lambda para passar razao_social E ID_OPERADORA
+        df_tri['Marca_Temp'] = df_tri.apply(
+            lambda row: extrair_marca(row['razao_social'], row['ID_OPERADORA']), 
+            axis=1
+        )
+        
         df_tri['ID_OPERADORA'] = df_tri['ID_OPERADORA'].astype(str)
         id_operadora = str(id_operadora)
         
@@ -32,23 +37,19 @@ class CalculationExplainerUseCase:
         # A. VIDAS (Peso 40%) - Normalização Linear
         max_vidas = df_tri['NR_BENEF_T'].max() or 1
         vidas_real = dados_op['NR_BENEF_T']
-        # Fórmula: Valor / Máximo
         score_vidas = (vidas_real / max_vidas) * 100
 
         # B. RECEITA (Peso 40%) - Normalização Linear
         max_receita = df_tri['VL_SALDO_FINAL'].max() or 1
         rec_real = dados_op['VL_SALDO_FINAL']
-        # Fórmula: Valor / Máximo
         score_rec = (rec_real / max_receita) * 100
 
         # C. PERFORMANCE (Peso 20%) - Composta (Vidas + Receita)
-        # Regra: Clip entre -10% e +10%
         CLIP_MIN, CLIP_MAX = -0.10, 0.10
         
         # C1. Performance Vidas
         perf_vid_real = dados_op.get('VAR_PCT_VIDAS', 0)
         perf_vid_clip = max(min(perf_vid_real, CLIP_MAX), CLIP_MIN)
-        # Normaliza para 0-100 baseando-se no range total (0.20)
         score_p_vid = ((perf_vid_clip - CLIP_MIN) / (CLIP_MAX - CLIP_MIN)) * 100
         
         # C2. Performance Receita
@@ -63,7 +64,6 @@ class CalculationExplainerUseCase:
         final_score = (score_vidas * 0.40) + (score_rec * 0.40) + (score_perf_total * 0.20)
 
         # --- PARTE 2: EXTRAS (Spread e Grupo) ---
-        # (Mantido igual à versão anterior)
         op_cresc_rec = dados_op.get('VAR_PCT_RECEITA', 0)
         mkt_mediana_rec = df_tri['VAR_PCT_RECEITA'].median()
         spread_rec = op_cresc_rec - mkt_mediana_rec
@@ -72,7 +72,9 @@ class CalculationExplainerUseCase:
         mkt_mediana_vid = df_tri['VAR_PCT_VIDAS'].median()
         spread_vid = op_cresc_vid - mkt_mediana_vid
         
-        marca = extrair_marca(dados_op['razao_social'])
+        # CORREÇÃO 2: Passagem correta dos dois argumentos
+        marca = extrair_marca(dados_op['razao_social'], dados_op['ID_OPERADORA'])
+        
         df_grupo = df_tri[df_tri['Marca_Temp'] == marca]
         
         total_rec_grupo = df_grupo['VL_SALDO_FINAL'].sum()
