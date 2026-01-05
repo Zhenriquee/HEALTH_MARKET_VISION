@@ -1,51 +1,61 @@
+import os
 import pandas as pd
 import numpy as np
 from infra.db_connector import ConexaoSQLite
+from backend.repository import AnsRepository
 
 class DataEngine:
     def __init__(self):
+        # Inicializa o conector
         self.connector = ConexaoSQLite()
+        
+        # Configura o caminho absoluto para a pasta de queries
+        # Assume que a estrutura é: projeto/queries/
+        base_dir = os.getcwd()
+        queries_path = os.path.join(base_dir, 'queries')
+        
+        # Inicializa o Repositório injetando o conector e o caminho
+        self.repository = AnsRepository(self.connector, queries_path)
 
     def _carregar_tabelas_brutas(self):
-        """Lê as tabelas do banco sem processamento pesado"""
-        print("Carregando tabelas para memória...")
+        """
+        Lê as tabelas do banco utilizando o Repository Pattern.
+        O SQL agora reside em arquivos externos .sql na pasta queries/etl/
+        """
+        print("Carregando tabelas para memória via Repository...")
         
         # 1. Dimensão Operadoras
-        sql_dim = """
-            SELECT 
-                registro_operadora, cnpj, razao_social, uf, modalidade,
-                cidade, representante, cargo_representante, Data_Registro_ANS,
-                descredenciada_em, descredenciamento_motivo
-            FROM dim_operadoras
-        """
-        df_dim = self.connector.executar_query(sql_dim)
+        df_dim = self.repository.buscar_dados_brutos(
+            nome_query="etl/load_dim_operadoras.sql"
+        )
 
         # 2. Beneficiários
-        sql_ben = "SELECT CD_OPERADO, ID_TRIMESTRE, NR_BENEF_T FROM beneficiarios_agrupados"
-        df_ben = self.connector.executar_query(sql_ben)
+        df_ben = self.repository.buscar_dados_brutos(
+            nome_query="etl/load_beneficiarios.sql"
+        )
 
         # 3. Financeiro
-        sql_fin = "SELECT REG_ANS, ID_TRIMESTRE, VL_SALDO_FINAL FROM demonstracoes_contabeis"
-        df_fin = self.connector.executar_query(sql_fin)
+        df_fin = self.repository.buscar_dados_brutos(
+            nome_query="etl/load_financeiro.sql"
+        )
 
         return df_dim, df_ben, df_fin
 
     def gerar_dataset_mestre(self):
         """
         Gera o dataset único, aplicando filtro temporal >= 2012-T1
+        Mantém a lógica de transformação Python, mas a extração foi delegada.
         """
         df_dim, df_ben, df_fin = self._carregar_tabelas_brutas()
 
-        if df_dim.empty: return pd.DataFrame()
+        if df_dim.empty: 
+            return pd.DataFrame()
 
-        # --- PREPARAÇÃO DE TIPOS E NORMALIZAÇÃO (NOVO) ---
-        # Função para garantir formato "005711" (6 dígitos)
-        # 1. Converte pra string
-        # 2. Split('.')[0] remove decimais caso venha como float (ex: "5711.0" -> "5711")
-        # 3. zfill(6) preenche com zeros à esquerda
+        # --- PREPARAÇÃO DE TIPOS E NORMALIZAÇÃO ---
         def normalizar_ans(valor):
             return str(valor).split('.')[0].strip().zfill(6)
 
+        # Aplicação segura da normalização
         if not df_dim.empty:
             df_dim['registro_operadora'] = df_dim['registro_operadora'].apply(normalizar_ans)
             
@@ -65,7 +75,6 @@ class DataEngine:
             df_fin = df_fin[df_fin['ID_TRIMESTRE'] >= DATA_CORTE]
 
         # --- JOIN 1: Beneficiários + Financeiro (FULL OUTER JOIN) ---
-        # Agora o join funcionará pois ambas as chaves estão normalizadas (005711 == 005711)
         df_mestre = pd.merge(
             df_ben,
             df_fin,
@@ -98,20 +107,24 @@ class DataEngine:
             'NR_BENEF_T', 'VL_SALDO_FINAL'
         ]
         
+        # Filtra apenas as colunas que realmente existem após os joins
         cols_existentes = [c for c in cols_desejadas if c in df_final.columns]
         df_final = df_final[cols_existentes]
 
         # Ordenação Obrigatória
-        df_final = df_final.sort_values(['ID_OPERADORA', 'ID_TRIMESTRE'])
+        if not df_final.empty:
+            df_final = df_final.sort_values(['ID_OPERADORA', 'ID_TRIMESTRE'])
 
-        # --- CÁLCULOS ---
-        df_final['VAR_PCT_VIDAS'] = df_final.groupby('ID_OPERADORA')['NR_BENEF_T'].pct_change().fillna(0)
-        df_final['VAR_PCT_RECEITA'] = df_final.groupby('ID_OPERADORA')['VL_SALDO_FINAL'].pct_change().fillna(0)
+        # --- CÁLCULOS DE BUSINESS INTELLIGENCE ---
+        # Garante que não hajam divisões por zero ou NaNs indesejados
+        if not df_final.empty:
+            df_final['VAR_PCT_VIDAS'] = df_final.groupby('ID_OPERADORA')['NR_BENEF_T'].pct_change().fillna(0)
+            df_final['VAR_PCT_RECEITA'] = df_final.groupby('ID_OPERADORA')['VL_SALDO_FINAL'].pct_change().fillna(0)
 
-        df_final['CUSTO_POR_VIDA'] = np.where(
-            df_final['NR_BENEF_T'] > 0, 
-            df_final['VL_SALDO_FINAL'] / df_final['NR_BENEF_T'], 
-            0
-        )
+            df_final['CUSTO_POR_VIDA'] = np.where(
+                df_final['NR_BENEF_T'] > 0, 
+                df_final['VL_SALDO_FINAL'] / df_final['NR_BENEF_T'], 
+                0
+            )
 
         return df_final
